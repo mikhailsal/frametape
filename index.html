@@ -118,6 +118,14 @@
       // ============================================================
       // Game State (centralized, serializable)
       // ============================================================
+      // ============================================================
+      // Mirror Doppelgänger Configuration
+      // ============================================================
+      const MIRROR_FOOD_MIN_INTERVAL = 10;  // game moves (min moves between mirror food spawns)
+      const MIRROR_FOOD_MAX_INTERVAL = 10;  // game moves (max moves between mirror food spawns)
+      const DOPPELGANGER_MIN_DURATION = 10; // seconds
+      const DOPPELGANGER_MAX_DURATION = 15; // seconds
+
       function createInitialState() {
         const centerX = Math.floor(GRID_SIZE / 2);
         const centerY = Math.floor(GRID_SIZE / 2);
@@ -138,6 +146,17 @@
           gridSize: GRID_SIZE,
           cellSize: CELL_SIZE,
           tickRate: TICK_RATE,
+
+          // Mirror Doppelgänger state
+          mirrorFood: null,              // { x, y } — special mirror food position
+          mirrorFoodTimer: 0,            // ticks until next mirror food spawn
+          mirrorFoodSpawnInterval: 0,    // chosen interval in ticks
+          doppelganger: {
+            active: false,
+            segments: [],                // mirrored snake segments
+            remainingTicks: 0,           // ticks until doppelgänger disappears
+            totalDurationTicks: 0,       // total duration for display purposes
+          },
         };
       }
 
@@ -146,8 +165,18 @@
       // ============================================================
       // Food Placement
       // ============================================================
-      function placeFood(state) {
+      function getOccupiedSet(state) {
         const occupied = new Set(state.snake.map(s => `${s.x},${s.y}`));
+        if (state.food) occupied.add(`${state.food.x},${state.food.y}`);
+        if (state.mirrorFood) occupied.add(`${state.mirrorFood.x},${state.mirrorFood.y}`);
+        if (state.doppelganger && state.doppelganger.active) {
+          state.doppelganger.segments.forEach(s => occupied.add(`${s.x},${s.y}`));
+        }
+        return occupied;
+      }
+
+      function placeFood(state) {
+        const occupied = getOccupiedSet(state);
         let attempts = 0;
         let x, y;
         do {
@@ -157,6 +186,46 @@
         } while (occupied.has(`${x},${y}`) && attempts < 1000);
 
         return { x, y };
+      }
+
+      // ============================================================
+      // Mirror Food Placement
+      // ============================================================
+      function placeMirrorFood(state) {
+        const occupied = getOccupiedSet(state);
+        let attempts = 0;
+        let x, y;
+        do {
+          x = Math.floor(Math.random() * GRID_SIZE);
+          y = Math.floor(Math.random() * GRID_SIZE);
+          attempts++;
+        } while (occupied.has(`${x},${y}`) && attempts < 1000);
+
+        return { x, y };
+      }
+
+      function getRandomMirrorFoodInterval() {
+        // Returns interval directly in game moves
+        const moves = MIRROR_FOOD_MIN_INTERVAL +
+          Math.random() * (MIRROR_FOOD_MAX_INTERVAL - MIRROR_FOOD_MIN_INTERVAL);
+        return Math.round(moves);
+      }
+
+      function getRandomDoppelgangerDuration() {
+        // Returns duration in game moves
+        const seconds = DOPPELGANGER_MIN_DURATION +
+          Math.random() * (DOPPELGANGER_MAX_DURATION - DOPPELGANGER_MIN_DURATION);
+        return Math.round(seconds * TICK_RATE);
+      }
+
+      // Compute mirrored segments (symmetrical to center of the grid)
+      function computeMirrorSegments(snake) {
+        return snake.map(function (seg) {
+          return {
+            x: GRID_SIZE - 1 - seg.x,
+            y: GRID_SIZE - 1 - seg.y,
+          };
+        });
       }
 
       // ============================================================
@@ -173,6 +242,35 @@
         if (state.tickCounter % framesPerMove !== 0) return state;
 
         state.moveCounter++;
+
+        // --- Mirror Food Spawn Timer ---
+        if (!state.mirrorFood && !state.doppelganger.active) {
+          if (state.mirrorFoodSpawnInterval === 0) {
+            // Initialize the timer on first move
+            state.mirrorFoodSpawnInterval = getRandomMirrorFoodInterval();
+            state.mirrorFoodTimer = state.mirrorFoodSpawnInterval;
+          }
+          state.mirrorFoodTimer--;
+          if (state.mirrorFoodTimer <= 0) {
+            state.mirrorFood = placeMirrorFood(state);
+            state.mirrorFoodTimer = 0;
+          }
+        }
+
+        // --- Doppelgänger Countdown ---
+        if (state.doppelganger.active) {
+          state.doppelganger.remainingTicks--;
+          if (state.doppelganger.remainingTicks <= 0) {
+            // Deactivate doppelgänger
+            state.doppelganger.active = false;
+            state.doppelganger.segments = [];
+            state.doppelganger.remainingTicks = 0;
+            state.doppelganger.totalDurationTicks = 0;
+            // Schedule next mirror food
+            state.mirrorFoodSpawnInterval = getRandomMirrorFoodInterval();
+            state.mirrorFoodTimer = state.mirrorFoodSpawnInterval;
+          }
+        }
 
         // Apply direction change
         state.direction = state.nextDirection;
@@ -203,16 +301,50 @@
           }
         }
 
+        // Doppelgänger collision (it's solid, like a wall)
+        if (state.doppelganger.active) {
+          for (let i = 0; i < state.doppelganger.segments.length; i++) {
+            const seg = state.doppelganger.segments[i];
+            if (seg.x === newHead.x && seg.y === newHead.y) {
+              state.gameOver = true;
+              return state;
+            }
+          }
+        }
+
         // Move snake
         state.snake.unshift(newHead);
 
-        // Check food
+        // Check regular food
         if (state.food && newHead.x === state.food.x && newHead.y === state.food.y) {
-          state.score++;
+          // Double points when doppelgänger is active!
+          state.score += state.doppelganger.active ? 2 : 1;
           state.food = placeFood(state);
           // Don't remove tail — snake grows
         } else {
           state.snake.pop(); // Remove tail
+        }
+
+        // Check mirror food — activates the doppelgänger
+        if (state.mirrorFood && newHead.x === state.mirrorFood.x && newHead.y === state.mirrorFood.y) {
+          state.mirrorFood = null;
+          const duration = getRandomDoppelgangerDuration();
+          state.doppelganger.active = true;
+          state.doppelganger.remainingTicks = duration;
+          state.doppelganger.totalDurationTicks = duration;
+          state.doppelganger.segments = computeMirrorSegments(state.snake);
+        }
+
+        // Update doppelgänger segments in real time (mirrors current snake)
+        if (state.doppelganger.active) {
+          state.doppelganger.segments = computeMirrorSegments(state.snake);
+
+          // Doppelgänger eats regular food (competes with the player!)
+          const doppelHead = state.doppelganger.segments[0];
+          if (state.food && doppelHead.x === state.food.x && doppelHead.y === state.food.y) {
+            // Food is consumed but player gets NO points — the doppelgänger stole it
+            state.food = placeFood(state);
+          }
         }
 
         return state;
@@ -254,6 +386,83 @@
           );
           ctx.fill();
           ctx.shadowBlur = 0;
+        }
+
+        // Draw mirror food (flashing cyan/magenta)
+        if (state.mirrorFood) {
+          const now = performance.now();
+          const flashPhase = Math.sin(now / 150); // fast flash
+          const alpha = 0.5 + 0.5 * Math.abs(flashPhase);
+          const hue = flashPhase > 0 ? 280 : 190; // alternates magenta ↔ cyan
+          ctx.fillStyle = `hsla(${hue}, 100%, 65%, ${alpha})`;
+          ctx.shadowColor = hue === 280 ? '#cc44ff' : '#00ddff';
+          ctx.shadowBlur = 12 + 6 * Math.abs(flashPhase);
+
+          // Draw a diamond shape to distinguish from regular food
+          const mx = state.mirrorFood.x * CELL_SIZE + CELL_SIZE / 2;
+          const my = state.mirrorFood.y * CELL_SIZE + CELL_SIZE / 2;
+          const r = CELL_SIZE / 2 - 1;
+          ctx.beginPath();
+          ctx.moveTo(mx, my - r);
+          ctx.lineTo(mx + r, my);
+          ctx.lineTo(mx, my + r);
+          ctx.lineTo(mx - r, my);
+          ctx.closePath();
+          ctx.fill();
+
+          // Inner glow circle
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + 0.3 * Math.abs(flashPhase)})`;
+          ctx.beginPath();
+          ctx.arc(mx, my, r / 3, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 0;
+        }
+
+        // Draw doppelgänger (ghostly mirror snake)
+        if (state.doppelganger.active && state.doppelganger.segments.length > 0) {
+          const remainRatio = state.doppelganger.totalDurationTicks > 0
+            ? state.doppelganger.remainingTicks / state.doppelganger.totalDurationTicks
+            : 1;
+          // Fade out in the last 3 seconds
+          const fadeAlpha = remainRatio < 0.2 ? remainRatio / 0.2 : 1;
+          const pulseAlpha = 0.5 + 0.15 * Math.sin(performance.now() / 200);
+          const baseAlpha = pulseAlpha * fadeAlpha;
+
+          state.doppelganger.segments.forEach(function (segment, index) {
+            if (index === 0) {
+              // Doppelgänger head
+              ctx.fillStyle = `rgba(200, 50, 255, ${baseAlpha})`;
+              ctx.shadowColor = '#cc44ff';
+              ctx.shadowBlur = 8;
+            } else {
+              // Doppelgänger body — gradient from bright to dim
+              const brightness = Math.max(30, 70 - index * 2);
+              ctx.fillStyle = `hsla(280, 100%, ${brightness}%, ${baseAlpha * 0.85})`;
+              ctx.shadowBlur = 0;
+            }
+
+            const padding = index === 0 ? 1 : 2;
+            ctx.fillRect(
+              segment.x * CELL_SIZE + padding,
+              segment.y * CELL_SIZE + padding,
+              CELL_SIZE - padding * 2,
+              CELL_SIZE - padding * 2
+            );
+          });
+
+          ctx.shadowBlur = 0;
+
+          // Draw "MIRROR" indicator and timer
+          const secondsLeft = Math.ceil(state.doppelganger.remainingTicks / TICK_RATE);
+          ctx.fillStyle = `rgba(200, 50, 255, ${0.7 * fadeAlpha})`;
+          ctx.font = 'bold 11px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(`🪞 MIRROR ${secondsLeft}s`, 6, 14);
+          // Double points indicator
+          ctx.fillStyle = `rgba(255, 200, 0, ${0.8 * fadeAlpha})`;
+          ctx.fillText('⚡ 2× POINTS', 6, 28);
+          ctx.textAlign = 'start';
         }
 
         // Draw snake
@@ -308,7 +517,14 @@
           messageDisplay.textContent = 'Press any arrow key to start';
           messageDisplay.className = '';
         } else {
-          messageDisplay.textContent = `Move: ${state.moveCounter} | Direction: ${state.direction}`;
+          let msg = `Move: ${state.moveCounter} | Direction: ${state.direction}`;
+          if (state.doppelganger.active) {
+            const secondsLeft = Math.ceil(state.doppelganger.remainingTicks / TICK_RATE);
+            msg += ` | 🪞 Mirror: ${secondsLeft}s (2× pts)`;
+          } else if (state.mirrorFood) {
+            msg += ' | 💎 Mirror food on field!';
+          }
+          messageDisplay.textContent = msg;
           messageDisplay.className = '';
         }
       }
@@ -322,6 +538,8 @@
         if (e.key === 'r' || e.key === 'R') {
           state = createInitialState();
           state.food = placeFood(state);
+          state.mirrorFoodSpawnInterval = getRandomMirrorFoodInterval();
+          state.mirrorFoodTimer = state.mirrorFoodSpawnInterval;
           return;
         }
 
@@ -403,6 +621,10 @@
       // ============================================================
       // Place initial food
       state.food = placeFood(state);
+
+      // Initialize mirror food timer
+      state.mirrorFoodSpawnInterval = getRandomMirrorFoodInterval();
+      state.mirrorFoodTimer = state.mirrorFoodSpawnInterval;
 
       // Initial render
       render(state);
