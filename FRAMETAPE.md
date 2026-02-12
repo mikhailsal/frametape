@@ -104,18 +104,18 @@ __AI_DEBUG__.clearRandomSeed();  // Restore original Math.random
 ## Architecture at a Glance
 
 ```
-┌──────────────────────────────────────────────────┐
-│  Web Application (e.g., Snake Game)              │
-│                                                  │
-│  ┌──────────┐  registers  ┌───────────────────┐  │
-│  │  Canvas   │───────────▶│  frametape.js      │  │
-│  └──────────┘             │  (FrameTape)       │  │
-│  ┌──────────┐  registers  │                   │  │
+┌────────────────────────────────────────────────────┐
+│  Web Application (e.g., Snake Game)                │
+│                                                    │
+│  ┌──────────┐  registers  ┌─────────────────────┐  │
+│  │  Canvas   │───────────▶│  frametape.js       │  │
+│  └──────────┘             │  (FrameTape)        │  │
+│  ┌──────────┐  registers  │                     │  │
 │  │  State    │───────────▶│  window.__AI_DEBUG__│  │
-│  └──────────┘             └────────┬──────────┘  │
-│                                    │              │
-│  requestAnimationFrame ◄───wrapped─┘              │
-└──────────────────────────────────────────────────┘
+│  └──────────┘             └────────┬────────────┘  │
+│                                    │               │
+│  requestAnimationFrame ◄───wrapped─┘               │
+└────────────────────────────────────────────────────┘
                     │
           ┌─────────┴──────────┐
           │  AI Agent (you)    │
