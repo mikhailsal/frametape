@@ -140,3 +140,43 @@ frametape/
     ├── debugging-walkthrough.md
     └── integration-guide.md
 ```
+
+## How FrameTape Compares
+
+FrameTape is **not** a session replay tool, a browser extension, or a product analytics platform. It is a lightweight, AI-agent-first debugging instrument for live web applications.
+
+Several existing projects overlap with parts of what FrameTape does, but none combines all of its features — and none targets AI agents as the primary user.
+
+| Project | What It Does | Overlap with FrameTape | Key Difference |
+|---|---|---|---|
+| **[rrweb](https://github.com/rrweb-io/rrweb)** (19k+ stars) | Records & replays DOM mutations as JSON events | Event recording, canvas capture, playback speed control | Passive replay of past sessions — no live app control, no state access |
+| **[Replay.io](https://replay.io)** | Time-travel debugger using a custom Chromium browser | Step through execution, inspect state, deterministic replay | Requires a special browser + cloud platform; human-oriented GUI |
+| **[Reactime](https://reactime.io)** (2k+ stars) | Chrome extension for React state snapshots & time travel | State recording, snapshot jumping, debug panel | React-only, Chrome extension, no frame-level control |
+| **[rafps](https://github.com/lukeed/rafps)** (82 stars) | Tiny helper for rAF play/pause/FPS control | rAF wrapping, play/pause, FPS targeting | Only frame rate control — no state, events, errors, or recording |
+| **[OpenReplay](https://openreplay.com)** (11k+ stars) | Self-hosted session replay & product analytics | Error capture, event recording, canvas support | Full platform for human product teams — no live control, no state API |
+
+### What makes FrameTape unique
+
+- **AI-agent-first** — a single `window.__AI_DEBUG__` API callable via `evaluate()` from any browser automation tool
+- **Live control** — pause, step, and slow-motion the running app (not a post-hoc recording)
+- **State read/write** — get and modify application state mid-execution
+- **All-in-one** — frame control + state tape + event log + error capture + canvas film strip
+- **Zero dependencies** — single ~660-line JS file, drop-in `<script>` tag
+
+| Feature | FrameTape | rrweb | Replay.io | Reactime | rafps | OpenReplay |
+|---|---|:---:|:---:|:---:|:---:|:---:|
+| **rAF pause/step/resume** | ✅ | ❌ | ❌ | ❌ | ✅ (play/pause) | ❌ |
+| **Slow motion control** | ✅ | ✅ (playback) | ❌ | ❌ | ✅ | ✅ (playback) |
+| **App state get/set** | ✅ | ❌ | ❌ (read only) | ✅ (React only) | ❌ | ❌ |
+| **Per-frame state recording** | ✅ | ❌ | ✅ | ✅ (on change) | ❌ | ❌ |
+| **Event recording** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| **Error capture** | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| **Canvas film strip** | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| **Seeded RNG** | ✅ | ❌ | ✅ (system-level) | ❌ | ❌ | ❌ |
+| **Debug panel overlay** | ✅ | ❌ | ❌ | ✅ (Chrome ext) | ❌ | ❌ |
+| **AI-agent API** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Framework-agnostic** | ✅ | ✅ | ✅ | ❌ (React) | ✅ | ✅ |
+| **Zero dependencies** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Single file** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Live app control** | ✅ | ❌ | ❌ | ❌ | ✅ (partial) | ❌ |
+| **Stars** | New | 19.1k | N/A (SaaS) | 2.2k | 82 | 11.7k |
