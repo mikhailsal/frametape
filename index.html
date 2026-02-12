@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Game — AI Vision Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a1a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 400px;
+    }
+
+    #game-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #00ff88;
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+    }
+
+    #score-display {
+      font-size: 20px;
+      color: #ffaa00;
+      font-weight: bold;
+    }
+
+    #game-canvas {
+      border: 2px solid #00ff88;
+      border-radius: 4px;
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
+      background: #111;
+    }
+
+    #game-message {
+      font-size: 16px;
+      color: #888;
+      text-align: center;
+      height: 24px;
+    }
+
+    #game-message.game-over {
+      color: #ff4444;
+      font-weight: bold;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    #controls-info {
+      font-size: 12px;
+      color: #555;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Load FrameTape AI Debug Library FIRST -->
+  <script src="frametape.js"></script>
+
+  <div id="game-container">
+    <div id="game-header">
+      <div id="game-title">🐍 SNAKE</div>
+      <div id="score-display">Score: 0</div>
+    </div>
+    <canvas id="game-canvas" width="400" height="400"></canvas>
+    <div id="game-message">Press any arrow key to start</div>
+    <div id="controls-info">Arrow keys to move | R to restart</div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================
+      // Game Configuration
+      // ============================================================
+      const GRID_SIZE = 20;       // 20x20 grid
+      const CELL_SIZE = 20;       // 20px per cell = 400px canvas
+      const TICK_RATE = 8;        // moves per second (normal mode)
+      const CANVAS_SIZE = GRID_SIZE * CELL_SIZE;
+
+      // ============================================================
+      // Canvas Setup
+      // ============================================================
+      const canvas = document.getElementById('game-canvas');
+      const ctx = canvas.getContext('2d');
+      const scoreDisplay = document.getElementById('score-display');
+      const messageDisplay = document.getElementById('game-message');
+
+      // ============================================================
+      // Game State (centralized, serializable)
+      // ============================================================
+      function createInitialState() {
+        const centerX = Math.floor(GRID_SIZE / 2);
+        const centerY = Math.floor(GRID_SIZE / 2);
+        return {
+          snake: [
+            { x: centerX, y: centerY },
+            { x: centerX - 1, y: centerY },
+            { x: centerX - 2, y: centerY },
+          ],
+          direction: 'right',
+          nextDirection: 'right',
+          food: null,          // will be placed on first update
+          score: 0,
+          gameOver: false,
+          started: false,
+          tickCounter: 0,      // counts animation frames
+          moveCounter: 0,      // counts snake moves
+          gridSize: GRID_SIZE,
+          cellSize: CELL_SIZE,
+          tickRate: TICK_RATE,
+        };
+      }
+
+      let state = createInitialState();
+
+      // ============================================================
+      // Food Placement
+      // ============================================================
+      function placeFood(state) {
+        const occupied = new Set(state.snake.map(s => `${s.x},${s.y}`));
+        let attempts = 0;
+        let x, y;
+        do {
+          x = Math.floor(Math.random() * GRID_SIZE);
+          y = Math.floor(Math.random() * GRID_SIZE);
+          attempts++;
+        } while (occupied.has(`${x},${y}`) && attempts < 1000);
+
+        return { x, y };
+      }
+
+      // ============================================================
+      // Game Logic: Update
+      // ============================================================
+      function update(state) {
+        if (state.gameOver || !state.started) return state;
+
+        state.tickCounter++;
+
+        // Only move the snake every N frames (based on tick rate)
+        // At 60fps with TICK_RATE=8, move every ~7.5 frames
+        const framesPerMove = Math.round(60 / state.tickRate);
+        if (state.tickCounter % framesPerMove !== 0) return state;
+
+        state.moveCounter++;
+
+        // Apply direction change
+        state.direction = state.nextDirection;
+
+        // Calculate new head position
+        const head = state.snake[0];
+        let newHead;
+        switch (state.direction) {
+          case 'up':    newHead = { x: head.x, y: head.y - 1 }; break;
+          case 'down':  newHead = { x: head.x, y: head.y + 1 }; break;
+          case 'left':  newHead = { x: head.x - 1, y: head.y }; break;
+          case 'right': newHead = { x: head.x + 1, y: head.y }; break;
+        }
+
+        // Wall collision
+        if (newHead.x < 0 || newHead.x >= GRID_SIZE ||
+            newHead.y < 0 || newHead.y >= GRID_SIZE) {
+          state.gameOver = true;
+          return state;
+        }
+
+        // Self collision (check against all body segments except the tail,
+        // because the tail will move away)
+        for (let i = 0; i < state.snake.length - 1; i++) {
+          if (state.snake[i].x === newHead.x && state.snake[i].y === newHead.y) {
+            state.gameOver = true;
+            return state;
+          }
+        }
+
+        // Move snake
+        state.snake.unshift(newHead);
+
+        // Check food
+        if (state.food && newHead.x === state.food.x && newHead.y === state.food.y) {
+          state.score++;
+          state.food = placeFood(state);
+          // Don't remove tail — snake grows
+        } else {
+          state.snake.pop(); // Remove tail
+        }
+
+        return state;
+      }
+
+      // ============================================================
+      // Rendering
+      // ============================================================
+      function render(state) {
+        // Clear canvas
+        ctx.fillStyle = '#111122';
+        ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        // Draw grid (subtle)
+        ctx.strokeStyle = '#1a1a2e';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= GRID_SIZE; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * CELL_SIZE, 0);
+          ctx.lineTo(i * CELL_SIZE, CANVAS_SIZE);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i * CELL_SIZE);
+          ctx.lineTo(CANVAS_SIZE, i * CELL_SIZE);
+          ctx.stroke();
+        }
+
+        // Draw food
+        if (state.food) {
+          ctx.fillStyle = '#ff4444';
+          ctx.shadowColor = '#ff4444';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(
+            state.food.x * CELL_SIZE + CELL_SIZE / 2,
+            state.food.y * CELL_SIZE + CELL_SIZE / 2,
+            CELL_SIZE / 2 - 2,
+            0, Math.PI * 2
+          );
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // Draw snake
+        state.snake.forEach(function (segment, index) {
+          if (index === 0) {
+            // Head
+            ctx.fillStyle = '#00ff88';
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 6;
+          } else {
+            // Body — gradient from bright to dim
+            const brightness = Math.max(40, 100 - index * 3);
+            ctx.fillStyle = `hsl(150, 100%, ${brightness}%)`;
+            ctx.shadowBlur = 0;
+          }
+
+          const padding = index === 0 ? 1 : 2;
+          ctx.fillRect(
+            segment.x * CELL_SIZE + padding,
+            segment.y * CELL_SIZE + padding,
+            CELL_SIZE - padding * 2,
+            CELL_SIZE - padding * 2
+          );
+        });
+
+        ctx.shadowBlur = 0;
+
+        // Draw game over overlay
+        if (state.gameOver) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          ctx.fillStyle = '#ff4444';
+          ctx.font = 'bold 36px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('GAME OVER', CANVAS_SIZE / 2, CANVAS_SIZE / 2 - 10);
+          ctx.fillStyle = '#ffaa00';
+          ctx.font = '18px Arial';
+          ctx.fillText(`Score: ${state.score}`, CANVAS_SIZE / 2, CANVAS_SIZE / 2 + 25);
+          ctx.fillStyle = '#888';
+          ctx.font = '14px Arial';
+          ctx.fillText('Press R to restart', CANVAS_SIZE / 2, CANVAS_SIZE / 2 + 55);
+        }
+
+        // Update score display
+        scoreDisplay.textContent = `Score: ${state.score}`;
+
+        // Update message
+        if (state.gameOver) {
+          messageDisplay.textContent = 'Game Over! Press R to restart';
+          messageDisplay.className = 'game-over';
+        } else if (!state.started) {
+          messageDisplay.textContent = 'Press any arrow key to start';
+          messageDisplay.className = '';
+        } else {
+          messageDisplay.textContent = `Move: ${state.moveCounter} | Direction: ${state.direction}`;
+          messageDisplay.className = '';
+        }
+      }
+
+      // ============================================================
+      // Input Handling
+      // ============================================================
+      const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'r' || e.key === 'R') {
+          state = createInitialState();
+          state.food = placeFood(state);
+          return;
+        }
+
+        const dirMap = {
+          'ArrowUp': 'up',
+          'ArrowDown': 'down',
+          'ArrowLeft': 'left',
+          'ArrowRight': 'right',
+        };
+
+        const newDir = dirMap[e.key];
+        if (!newDir) return;
+
+        e.preventDefault();
+
+        if (!state.started) {
+          state.started = true;
+          // Food is already placed during initialization, no need to re-place
+          state.nextDirection = newDir;
+          // Don't allow starting in opposite of initial direction
+          if (OPPOSITE[newDir] === state.direction) {
+            state.nextDirection = state.direction;
+          }
+          return;
+        }
+
+        if (state.gameOver) return;
+
+        // Prevent reversing into yourself
+        if (OPPOSITE[newDir] !== state.direction) {
+          state.nextDirection = newDir;
+        }
+      });
+
+      // ============================================================
+      // Game Loop
+      // ============================================================
+      function gameLoop(timestamp) {
+        update(state);
+        render(state);
+        requestAnimationFrame(gameLoop);
+      }
+
+      // ============================================================
+      // AI Debug Integration
+      // ============================================================
+      if (window.__AI_DEBUG__) {
+        // Register state provider
+        window.__AI_DEBUG__.registerStateProvider(
+          function () { return state; },
+          function (patch) {
+            // Merge patch into state
+            if (patch) {
+              Object.keys(patch).forEach(function (key) {
+                if (key === 'snake' || key === 'food') {
+                  state[key] = JSON.parse(JSON.stringify(patch[key]));
+                } else {
+                  state[key] = patch[key];
+                }
+              });
+            }
+          }
+        );
+
+        // Register canvas for film strip
+        window.__AI_DEBUG__.registerCanvas(canvas);
+
+        console.log('%c🐍 Snake game registered with FrameTape', 'color: #00ff88;');
+
+        // Auto-activate AI debug mode via URL parameter ?debug=ai
+        if (new URLSearchParams(window.location.search).get('debug') === 'ai') {
+          window.__AI_DEBUG__.setMode('ai');
+          console.log('%c🤖 AI Debug Mode auto-activated via URL parameter', 'color: #00ff88; font-weight: bold;');
+        }
+      }
+
+      // ============================================================
+      // Initialize
+      // ============================================================
+      // Place initial food
+      state.food = placeFood(state);
+
+      // Initial render
+      render(state);
+
+      // Start game loop
+      requestAnimationFrame(gameLoop);
+
+    })();
+  </script>
+</body>
+</html>
