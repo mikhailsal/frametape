@@ -96,7 +96,7 @@ __AI_DEBUG__.clearRandomSeed();  // Restore original Math.random
 
 | File | Contents | When to Read |
 |---|---|---|
-| **[FRAMETAPE.md](FRAMETAPE.md)** | This file — overview and quickstart | Always read first |
+| **[README.md](README.md)** | This file — overview and quickstart | Always read first |
 | **[docs/api-reference.md](docs/api-reference.md)** | Complete API reference with all methods, parameters, and return values | When you need exact method signatures |
 | **[docs/debugging-walkthrough.md](docs/debugging-walkthrough.md)** | Step-by-step example: debugging the Snake game, finding and fixing a real bug | When you want to learn the debugging methodology |
 | **[docs/integration-guide.md](docs/integration-guide.md)** | How to instrument your own web application with FrameTape | When building or modifying an app to use FrameTape |
@@ -134,7 +134,7 @@ __AI_DEBUG__.clearRandomSeed();  // Restore original Math.random
 frametape/
 ├── frametape.js          ← FrameTape library (include BEFORE your app)
 ├── index.html           ← Snake game demo with FrameTape integration
-├── FRAMETAPE.md         ← This file
+├── README.md            ← This file
 └── docs/
     ├── api-reference.md
     ├── debugging-walkthrough.md

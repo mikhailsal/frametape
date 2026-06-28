@@ -2,7 +2,7 @@
 
 > This document walks through a real debugging session where FrameTape was used to find and fix a bug in the Snake game. It demonstrates the methodology an AI agent should follow.
 
-See [FRAMETAPE.md](../FRAMETAPE.md) for overview | [API Reference](api-reference.md) for method details.
+See [README.md](../README.md) for overview | [API Reference](api-reference.md) for method details.
 
 ---
 

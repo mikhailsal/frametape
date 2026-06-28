@@ -1,6 +1,6 @@
 # FrameTape API Reference
 
-> Complete reference for `window.__AI_DEBUG__`. See [FRAMETAPE.md](../FRAMETAPE.md) for overview and quickstart.
+> Complete reference for `window.__AI_DEBUG__`. See [README.md](../README.md) for overview and quickstart.
 
 ## Mode Control
 

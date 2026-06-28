@@ -1,6 +1,6 @@
 # Integration Guide: Adding FrameTape to Your Web Application
 
-> How to instrument any web application with FrameTape so AI agents can debug it. See [FRAMETAPE.md](../FRAMETAPE.md) for overview | [API Reference](api-reference.md) for method details.
+> How to instrument any web application with FrameTape so AI agents can debug it. See [README.md](../README.md) for overview | [API Reference](api-reference.md) for method details.
 
 ---
 
